@@ -1,0 +1,16 @@
+Blizzard's interface api.  
+https://github.com/Gethe/wow-ui-source/tree/beta/Interface/AddOns/Blizzard_APIDocumentationGenerated
+
+Townlong-Yak (make sure you're on the current build:
+https://www.townlong-yak.com/framexml/era
+
+Gamepedia: 
+https://wow.gamepedia.com/World_of_Warcraft_API
+
+Warcraft Wiki:
+https://warcraft.wiki.gg/wiki/Category:API_namespaces
+
+Wow Wiki:
+Kind of helpful list of API events:
+https://wowwiki-archive.fandom.com/wiki/Category:API_events
+
