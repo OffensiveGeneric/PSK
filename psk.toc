@@ -1,1 +1,12 @@
-Placeholder
+## Interface: 11507
+## Title: PSK
+## Notes: Addon developed by Taurbucks Woozysafe on Nightslayer-US.
+## Author: Taurbucks and WoozySafe
+## Version: 1.0.0
+## RequiredDeps: 
+## X-Curse-Project-ID: 99999
+## SavedVariables: 
+## SavedVariablesPerCharacter: PSKDB
+
+PDK.lua
+
