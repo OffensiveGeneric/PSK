@@ -8,5 +8,5 @@
 ## SavedVariables: 
 ## SavedVariablesPerCharacter: PSKDB
 
-PDK.lua
+PSK.lua
 
