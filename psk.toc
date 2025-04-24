@@ -1,12 +1,11 @@
 ## Interface: 11507
-## Title: PSK
-## Notes: Addon developed by Taurbucks Woozysafe on Nightslayer-US.
-## Author: Taurbucks and WoozySafe
+## Title: Perchance KSK (PSK)
+## Notes: Addon for Perchance to keep track of KSK listing.
+## Author: Taurbucks and WoozySafe (Nightslayer-US)
 ## Version: 1.0.0
-## RequiredDeps: 
+## RequiredDeps:
 ## X-Curse-Project-ID: 99999
-## SavedVariables: 
-## SavedVariablesPerCharacter: PSKDB
+## SavedVariables: PSKDB
+## SavedVariablesPerCharacter: 
 
-PSK.lua
-
+psk.lua
