@@ -17,8 +17,10 @@
 		so alts can access it also. Without the DB being defined, all data will be lost on 
 		reload/relog.  ]]
 if not PSKDB then
-	PSKDB = {
-		
+	PSKDB = { 
+		["CharName"] = {
+			class = "UNKNOWN",
+			seen = os.date("%Y%m%d %H%M")
 	}
 end
 
@@ -54,7 +56,80 @@ pskFrame:SetScript("OnHide", function()
         PlaySound(808)
 end)
 
---[[ This is the slash command to open the addon via the console.  We'll also add a minimap button later. ]]
+--[[ Create a frame to attach to pskFrame that allows for scrolling ]]
+local scrollFrame = CreateFrame("ScrollFrame", nil, pskFrame, "UIPanelScrollFrameTemplate")
+scrollFrame:SetPoint("TOPLEFT", 10, -10)
+scrollFrame:SetScrollChild(content)
+content:SetSize(260, 400)
+
+--[[ Grab guild member info and save to db ]]
+local function SaveOnlineGuildMembers()
+	PSKDB.names = PSKDB.names or {}
+		
+	local total = GetNumGuildMembers()
+	
+	for i = 1, total do
+		local name, _, _, _, _, _, _, _, online, _, _, classFileName = GetGuildRosterInfo(i)
+		name = Ambiguate(name, "short")
+		classFileName = classFileName or "UNKNOWN"
+		
+		if online and not PSKDB[name] then
+			PSKDB[name] = {
+				class = classFileName, 
+				seen = date("%Y-%m-%d %H:%M")
+			}
+		end
+	end
+end
+
+--[[ Draw the UI ]]
+local function UpdateNameList()
+	local yOffset = -5
+	--[[ local previousFontString ]]
+	
+	content:setSize(260, math.max(#PSKDB.names * 20, 400))
+	
+	for name, data in pairs(PSKDB) do
+	
+		--[[ Class info ]]
+		local class = data.class or "UNKNOWN"
+		local seen = data.seen or "UNKNOWN"
+	
+		--[[ Class icon]]
+		local icon = content:CreateTexture(nil, "ARTWORK")
+		icon.SetSize(16, 16)
+		icon:SetPoint("TOPLEFT", content, "TOPLEFT", 5, yOffset)
+		
+		local coords = CLASS_ICON_TCOORDS[class]
+		
+		--[[ Set class icon ]]
+		if coords then
+			icon:SetTexture("Interface\GLUES\\CHARACTERCREATE\UI-CHARACTERCREATE-CLASSES")
+			icon:SetTextCoord(unpack(coords))
+		end
+		
+		--[[ Name and tooltip ]]
+		local fs = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		fs:SetText(name)
+		fs:SetPoint("LEFT", icon, "RIGHT", 5, 0)
+		
+		--[[ Tooltip on hover ]]
+		local hoverFrame = CreateFrame("Frame", nil, content)
+		hoverFrame:SetPoint("TOPLEFT", icon)
+		hoverFrame:SetSize(260, 20)
+		hoverFrame:SetScript("OnEnter", function()
+			GameToolTip:SetOwner(hoverFrame, "ACHNOR_RIGHT")
+			GameToolTip:SetText(name .. "\nFirst Seen: " .. seen, 1, 1, 1)
+			GameToolTip:Show()
+		end)
+		
+		hoverFrame:SetScript("OnLeave", GameTooltip_Hide)
+		yOffset = yOffset - 20
+	end
+end
+
+
+--[[ This is the slash command to open the addon via the console.  We'll also add a minimap button later with Ace3. ]]
 SLASH_PSK = "/psk"
 SlashCmdList["PSK"] = function()
 	if pskFrame:IsShown() then	
@@ -70,28 +145,41 @@ table.insert(UISpecialFrames, "PSKMainFrame")
 
 --[[ Creates another frame for an event listener, and sets its parent to the UI parent frame ]]
 local pskListenerFrame = CreateFrame("Frame", "PSKEventListenerFrame", UIParent)
+pskListenerFrame:RegisterEvent("CHAT_MSG_GUILD")
+pskListenerFrame:RegisterEvent("CHAT_MSG_RAID")
+pskListenerFrame:RegisterEvent("GUILD_ROSTER_UPDATE")
+pskListenerFrame:SetScript("OnEvent", function(self, event, ...)
 
-local function eventHandler(self, event, ...)
-
+	--[[ If you are in a guild, get the guild roster ]]
+	if IsInGuild() then
+		C_GuildInfo.GuildRoster()
+	end
+	
+	--[[ If the guild roster was updated, update the name list ]]
+	if event == "GUILD_ROSTER_UPDATE" then
+		SaveOnlineGuildMembers()
+		UpdateNameList()
+	end
+	
+	if pskFrame:IsShown() then
+		--[[ TO DO: Display flag for bid next to player's name later ]]
+    end
+	
+	-- [[ If guild chat said anything, print what they said to console ]]
 	if event == CHAT_MSG_GUILD
 		-- [[ Get the most recent line (0) in Guild (2) chat. ]]
 		local msg, sender 
 		msg = C_ChatInfo.GetChatLineText(2, 0)
 		sender = C_ChatInfo.GetChatLineSenderName(msg)
 		Print(sender .. " said " .. chatLine )
-	elseif event = CHAT_MSG_RAID
+	end
+	
+	--[[ If raid chat said anything, print what they said to console ]]
+	if event = CHAT_MSG_RAID
 		-- [[ Get the most recent line (0) in Guild (2) chat. ]]
 		local msg, sender 
 		msg = C_ChatInfo.GetChatLineText(2, 0)
 		sender = C_ChatInfo.GetChatLineSenderName(msg)
 		Print(sender .. " said " .. chatLine )
     end
-	
-	if pskFrame:IsShown() then
-		--[[ Display flag for bid next to player's name later ]]
-    end
 end
-
-pskListenerFrame:SetScript("OnEvent", eventHandler)
-pskListenerFrame:RegisterEvent("CHAT_MSG_GUILD")
-pskListenerFrame:RegisterEvent("CHAT_MSG_RAID")
