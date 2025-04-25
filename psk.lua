@@ -58,8 +58,12 @@ local pskListenerFrame = CreateFrame("Frame", "PSKEventListenerFrame", UIParent)
 --[[ Handle the events that are registered below ]]
 local function eventHandler(self, event, ...)
 
-	if event == "CHAT_MSG_GUILD" or event == "CHAT_MSG_RAID" or event == "CHAT_MSG_WHISPER_INFORM" then
+	if event == "CHAT_MSG_GUILD" 
+		or event == "CHAT_MSG_RAID" 
+		or event == "CHAT_MSG_WHISPER_INFORM" then
+		
         print(sender .. " said: " .. message)
+		
     end
 
 end
@@ -69,7 +73,9 @@ pskListenerFrame:SetScript("OnEvent", function(self, event, message, sender, ...
 		or event == "CHAT_MSG_RAID" 
 		or event == "CHAT_MSG_WHISPER_INFORM" 
 		or event == "CHAT_MSG_WHISPER" then
+		
 			print(sender .. " said: " .. message)
+			
     end
 	
 	if pskFrame:IsShown() then
