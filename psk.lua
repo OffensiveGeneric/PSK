@@ -14,6 +14,19 @@ for k, v in pairs(PSKDB) do
     end
 end
 
+-- Try to map localize class names to CLASS_ICON_TCOORDS keys since classFileName isn't returned in Classic Era by GetGuildRosterInfo()
+local CLASS_TRANSLATIONS = {
+    ["Warrior"] = "WARRIOR",
+    ["Paladin"] = "PALADIN",
+    ["Hunter"] = "HUNTER",
+    ["Rogue"] = "ROGUE",
+    ["Priest"] = "PRIEST",
+    ["Shaman"] = "SHAMAN",
+    ["Mage"] = "MAGE",
+    ["Warlock"] = "WARLOCK",
+    ["Druid"] = "DRUID"
+}
+
 -- Main UI Frame
 local pskFrame = CreateFrame("Frame", "PSKMainFrame", UIParent, "BasicFrameTemplateWithInset")
 pskFrame:SetSize(800, 600)
@@ -23,6 +36,7 @@ pskFrame:SetMovable(true)
 pskFrame:EnableMouse(true)
 pskFrame:RegisterForDrag("LeftButton")
 
+-- Mouse functions for main UI frame
 pskFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
 pskFrame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 pskFrame:SetScript("OnShow", function() PlaySound(808) end)
@@ -43,89 +57,132 @@ pskFrame.statusText:SetTextColor(0.7, 0.7, 0.7)
 SLASH_PSK1 = "/psk"
 SlashCmdList["PSK"] = function() pskFrame:Show() end
 
--- Scrollable Content
+-- Scrollable frame for guild members
 local scrollFrame = CreateFrame("ScrollFrame", nil, pskFrame, "UIPanelScrollFrameTemplate")
 scrollFrame:SetPoint("TOPLEFT", 25, -60)
 scrollFrame:SetSize(260, 400)
 
-local content = CreateFrame("Frame", nil, scrollFrame)
-content:SetSize(260, 400)
-scrollFrame:SetScrollChild(content)
+-- Container for player name entries.
+local playerFrame = CreateFrame("Frame", nil, scrollFrame)
+playerFrame:SetSize(260, 400)
+scrollFrame:SetScrollChild(playerFrame)
 
--- Save online guild members to DB
-local function SaveOnlineGuildMembers()
-    local total = GetNumGuildMembers()
-    for i = 1, total do
-        -- Classic-safe version of classFileName extraction
-        local name, _, _, _, _, _, _, _, online, _, class, classFileName = GetGuildRosterInfo(i)
-        if online and classFileName then
-            classFileName = string.upper(strtrim(classFileName))
-            name = Ambiguate(name, "short")
+-- Check if player is in the raid group
+local function IsInRaidGroup(name)
+    name = name:lower()
+    for i = 1, GetNumGroupMembers() do
+        local unit = "raid"..i
+        if UnitExists(unit) and UnitName(unit):lower == name then
+            return true
+        end
+    end
+    return false
+end
+
+-- Save all max-level members (online and offline)
+local function SaveGuildMembers()
+
+    -- This returns numTotalMembers, numOnlineMaxLevelMembers, numOnlineMembers in the guild
+    local totalMembers, totalLevelCapMembers, TotalOnlineMembers = GetNumGuildMembers()
+
+    -- Loop through level-capped guild members
+    for i = 1, totalLevelCapMembers do
+
+        -- GetGuildRosterInfo(i) returns the following for the index of the person in the guild (for Classic Era only):
+        --     name, rank, rankIndex, level, class, zone, note, officernote, online, status, classFileName, achievementPoints, achievementRank, isMobile, isSoREligible, standingID
+        -- Apparently, classFileName doesn't exist in Classic Era, so we have to work around that to get the textures for class icons...
+        -- local name, _, _, level, class, _, _, _, online, _, classFileName, _, _, _, _, _ = GetGuildRosterInfo(i)
+        
+        local name, _, _, level, class, _, _, _, online, _ = GetGuildRosterInfo(i)
+        name = Ambiguate(name or "Unknown", "short")
+        
+        local token = CLASS_TRANSLATIONS[class or ""] or "UNKNOWN"
+
+        local coords = CLASS_ICON_TCOORDS[token]
+
+        -- Check if level cap, then record class, date, and whether they're online
+        if level == 60 then
             PSKDB[name] = {
-                class = classFileName,
-                seen = date("%Y-%m-%d %H:%M")
+                class = token,
+                seen = date("%Y-%m-%d %H:%M"),
+                online = online
             }
         end
     end
 end
 
--- Draw the UI with player names and icons
+-- Draw the UI with player names and icons in playerFrame
 local function UpdateNameList()
-    for _, child in ipairs({ content:GetChildren() }) do child:Hide() end
+    for _, child in ipairs({ playerFrame:GetChildren() }) do child:Hide() end
 
     local yOffset = -5
     local count = 0
-    for _ in pairs(PSKDB) do count = count + 1 end
-    content:SetSize(260, math.max(count * 20, 400))
 
     for name, data in pairs(PSKDB) do
-        local class = string.upper(strtrim(tostring(data.class or "UNKNOWN")))
+        count = count + 1
+
+        -- Player data points
+        local class = data.class or "UNKNOWN"
         local seen = data.seen or "UNKNOWN"
+        local isOnline = data.online
+        local inRaid = IsInRaidGroup(name)
 
-        local icon = content:CreateTexture(nil, "ARTWORK")
+        -- Icon
+        local icon = playerFrame:CreateTexture(nil, "ARTWORK")
         icon:SetSize(16, 16)
-        icon:SetPoint("TOPLEFT", content, "TOPLEFT", 5, yOffset)
-
-        -- print("Drawing:", name, "Class:", class)
+        icon:SetPoint("TOPLEFT", playerFrame, "TOPLEFT", 5, yOffset)
 
         local coords = CLASS_ICON_TCOORDS[class]
+        
         if coords then
-            print("Icon coords:", unpack(coords))
             icon:SetTexture("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES")
             icon:SetTexCoord(unpack(coords))
         else
-            -- print("No coords found for", class)
+            print("No coords found for", class)
             icon:SetColorTexture(0.2, 0.2, 0.2)
         end
 
-        local fs = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        fs:SetText(name .. (coords and "" or " (?)"))
+        -- Name text
+        local fs = playerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        fs:SetText(name)
         fs:SetPoint("LEFT", icon, "RIGHT", 5, 0)
 
-        local color = RAID_CLASS_COLORS[class]
-        if color then
-            fs:SetTextColor(color.r, color.g, color.b)
+        -- Text color
+        if isOnline then
+            if inRaid then
+                fs:SetTextColor(0, 1, 0) -- green
+            else
+                fs:SetTextColor(1, 1, 0) -- yellow
+            end
+        else
+            fs:SetTextColor(0.5, 0.5, 0.5) -- gray
         end
 
-        local hoverFrame = CreateFrame("Frame", nil, content)
-        hoverFrame:SetPoint("TOPLEFT", icon)
-        hoverFrame:SetSize(260, 20)
-        hoverFrame:SetScript("OnEnter", function()
-            GameTooltip:SetOwner(hoverFrame, "ANCHOR_RIGHT")
-            GameTooltip:SetText(name .. "\nLast Seen: " .. seen, 1, 1, 1)
+        -- Tooltip
+        fs:EnableMouse(true)
+        
+        fs:SetScript("OnEnter", function()
+            GameTooltip:SetText(name .. "\nLast Seen: "..seen, 1, 1, 1)
             GameTooltip:Show()
         end)
-        hoverFrame:SetScript("OnLeave", GameTooltip_Hide)
 
-        yOffset = yOffset - 20
+        fs:SetScript("OnLeave", GameTooltip_Hide)
+            yOffset = yOffset - 20
+        end
+
+        playerFrame:SetSize(260, math.max(count * 20, 400)
     end
 end
 
--- Event Listener
-local listener = CreateFrame("Frame")
+
+-- Slow down the guild roster request until player is fully loaded into the world.
 local hasRequestedRoster = false
 
-listener:SetScript("OnEvent", function(self, event, ...)
+-- Event Listener
+local listener = CreateFrame("Frame")
+
+listener:SetScript("OnEvent", function(self, event, message, sender, ...)
+        
     if event == "PLAYER_ENTERING_WORLD" and not hasRequestedRoster then
         hasRequestedRoster = true
         C_Timer.After(2, function()
@@ -136,23 +193,29 @@ listener:SetScript("OnEvent", function(self, event, ...)
         end)
     elseif event == "GUILD_ROSTER_UPDATE" then
         C_Timer.After(1, function()
-            SaveOnlineGuildMembers()
+            SaveGuildMembers()
             UpdateNameList()
             pskFrame.statusText:SetText("Last updated: " .. date("%Y-%m-%d %H:%M"))
         end)
-    elseif event == "PLAYER_LOGIN" then
-        pskFrame:Show()
+    end
+
+    if event == "CHAT_MSG_GUILD" or event == "CHAT_MSG_RAID" then
+        if message:lower():find("bid") then
+            print(sender .. " has listed their bid!")
+        end
     end
 end)
 
--- Register Events
+-- Register Events for the event listener
+-- The listener has to be created first, then we attach an event to it.
 listener:RegisterEvent("CHAT_MSG_GUILD")
 listener:RegisterEvent("CHAT_MSG_RAID")
-listener:RegisterEvent("CHAT_MSG_WHISPER")
-listener:RegisterEvent("CHAT_MSG_WHISPER_INFORM")
 listener:RegisterEvent("PLAYER_ENTERING_WORLD")
 listener:RegisterEvent("GUILD_ROSTER_UPDATE")
 listener:RegisterEvent("PLAYER_LOGIN")
+-- Unused for now, will add back later.
+-- listener:RegisterEvent("CHAT_MSG_WHISPER")
+-- listener:RegisterEvent("CHAT_MSG_WHISPER_INFORM")
 
--- Mark frame as closable with Escape
+-- Mark frame as closable with Escape, among other nifty functions that come with special frames
 table.insert(UISpecialFrames, "PSKMainFrame")
