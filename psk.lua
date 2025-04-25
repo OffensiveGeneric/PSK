@@ -86,7 +86,7 @@ local function UpdateNameList()
         icon:SetSize(16, 16)
         icon:SetPoint("TOPLEFT", content, "TOPLEFT", 5, yOffset)
 
-        print("Drawing:", name, "Class:", class)
+        -- print("Drawing:", name, "Class:", class)
 
         local coords = CLASS_ICON_TCOORDS[class]
         if coords then
@@ -94,7 +94,7 @@ local function UpdateNameList()
             icon:SetTexture("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES")
             icon:SetTexCoord(unpack(coords))
         else
-            print("No coords found for", class)
+            -- print("No coords found for", class)
             icon:SetColorTexture(0.2, 0.2, 0.2)
         end
 
