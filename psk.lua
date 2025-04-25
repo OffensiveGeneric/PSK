@@ -53,9 +53,11 @@ pskFrame.statusText:SetPoint("TOPLEFT", pskFrame.title, "BOTTOMLEFT", 25, -10)
 pskFrame.statusText:SetText("Last updated: never")
 pskFrame.statusText:SetTextColor(0.7, 0.7, 0.7)
 
--- Slash command
-SLASH_PSK1 = "/psk"
-SlashCmdList["PSK"] = function() pskFrame:Show() end
+-- Refresh Button
+local refreshButton = CreateFrame("Button", nil, pskFrame, "UIPanelButtonTemplate")
+refreshButton:SetSize(80, 24)
+refreshButton.SetPoint("TOPRIGHT", pskFrame, "TOPRIGHT", -30, -30)
+refreshButton.SetText("Refresh")
 
 -- Scrollable frame for guild members
 local scrollFrame = CreateFrame("ScrollFrame", nil, pskFrame, "UIPanelScrollFrameTemplate")
@@ -66,6 +68,10 @@ scrollFrame:SetSize(260, 400)
 local playerFrame = CreateFrame("Frame", nil, scrollFrame)
 playerFrame:SetSize(260, 400)
 scrollFrame:SetScrollChild(playerFrame)
+
+-- Slash command
+SLASH_PSK1 = "/psk"
+SlashCmdList["PSK"] = function() pskFrame:Show() end
 
 -- Check if player is in the raid group
 local function IsInRaidGroup(name)
@@ -111,20 +117,40 @@ local function SaveGuildMembers()
     end
 end
 
--- Draw the UI with player names and icons in playerFrame
+-- Draw the UI with player names and icons in playerFrame.  Sorted by online first, offline second (for now)
 local function UpdateNameList()
     for _, child in ipairs({ playerFrame:GetChildren() }) do child:Hide() end
 
     local yOffset = -5
+    local entries = {}
     local count = 0
 
+    -- Build a sortable table
     for name, data in pairs(PSKDB) do
-        count = count + 1
+        table.insert(entries, {
+            name = name,
+            class = data.class,
+            seen = data.seen,
+            online = data.online
+        })
+    end
 
+    -- Simple sort (online first, then offline)
+    table.sort(entries, function(a, b)
+        if a.online == b.online then
+            return a.name < b.name 
+        else
+            return a.online and not b.online
+        end
+    end)
+
+    for _, entry in ipairs(entries) do
+        
         -- Player data points
-        local class = data.class or "UNKNOWN"
-        local seen = data.seen or "UNKNOWN"
-        local isOnline = data.online
+        local name = entry.name
+        local class = entry.class or "UNKNOWN"
+        local seen = entry.seen or "UNKNOWN"
+        local isOnline = entry.online
         local inRaid = IsInRaidGroup(name)
 
         -- Icon
@@ -174,6 +200,46 @@ local function UpdateNameList()
     end
 end
 
+-- Refresh button
+local function RefreshRoster()
+    if not IsInGuild() then return end
+
+    -- Play auction window sound because "why not?"
+    PlaySound(12867)
+
+    -- Set up flash
+    if not refreshButton.flash then
+        local flash = refreshButton.CreateAnimationGroup()
+        local alphaOut = flash:CreateAnimation("Alpha)
+        alphaOut:SetFromAlpha(1)
+        alphaOut:SetToAlpha(0.5)
+        alphaOut:SetDuration(0.1)
+        alphaOut::SetOrder(1)
+
+        local alphaIn = flash.CreateAnimation("Alpha")
+        alphaIn:SetFromAlpha(0.5)
+        alphaIn:SetToAlpha(1)
+        alphaIn:SetDuration(0.2)
+        alphaIn:SetOrder(2)
+
+        refreshButton.flash = flash
+    end
+
+    -- Flash button
+    refreshButton.flash:Play()
+
+    -- Update roster after a slight delay
+    C_GuildInfo.GuildRoster()
+        
+    C_Timer.After(1, function()
+        SaveGuildMembers()
+        UpdateNameList()
+        pskFrame.statusText:SetText("Last updated: " .. date("%Y-%m-%d %H:%M"))
+    end)
+end
+
+-- Refresh button Listener
+refreshButton:SetScript("OnClick", RefreshRoster)
 
 -- Slow down the guild roster request until player is fully loaded into the world.
 local hasRequestedRoster = false
@@ -182,23 +248,19 @@ local hasRequestedRoster = false
 local listener = CreateFrame("Frame")
 
 listener:SetScript("OnEvent", function(self, event, message, sender, ...)
-        
+
+    -- Refresh the guild roster when player enters
     if event == "PLAYER_ENTERING_WORLD" and not hasRequestedRoster then
         hasRequestedRoster = true
         C_Timer.After(2, function()
             if IsInGuild() then
                 print("Requesting guild roster...")
-                C_GuildInfo.GuildRoster()
+                RefreshRoster()
             end
-        end)
-    elseif event == "GUILD_ROSTER_UPDATE" then
-        C_Timer.After(1, function()
-            SaveGuildMembers()
-            UpdateNameList()
-            pskFrame.statusText:SetText("Last updated: " .. date("%Y-%m-%d %H:%M"))
         end)
     end
 
+    -- Check guild/raid chat for the word "bid", then handle
     if event == "CHAT_MSG_GUILD" or event == "CHAT_MSG_RAID" then
         if message:lower():find("bid") then
             print(sender .. " has listed their bid!")
@@ -207,7 +269,6 @@ listener:SetScript("OnEvent", function(self, event, message, sender, ...)
 end)
 
 -- Register Events for the event listener
--- The listener has to be created first, then we attach an event to it.
 listener:RegisterEvent("CHAT_MSG_GUILD")
 listener:RegisterEvent("CHAT_MSG_RAID")
 listener:RegisterEvent("PLAYER_ENTERING_WORLD")
