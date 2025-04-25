@@ -1,17 +1,3 @@
---[[ Ken: This code is untested since I'm at work.  If you feel like running it, let me know what happens ;-)
-	The basic breakdown is this:
-		- We create a frame (pskFrame) and attach it to the UIParent, using the BasicFrameTemplateWithInset 
-			template.
-		- Then we attach drag/drop functions with sounds for the frame.
-		- Afterwards, we create a slash command so the addon can be opened with /psk.  
-			TO DO: Use Ace3 to create a minimap button.
-		- We insert PSKMainFrame into the UISpecialFrames collection so it gets nifty UI stuff.
-		- We create an event listener frame (everythin is frames, lol) called pskListenerFrame
-		- We create our event handler and tell it to do two things: 
-			Print the last guild or raid chat message back to us in the console (yellow system text)
-		- Finally, we register events to our event handler so that it can actually see them.
-]] 
-
 
 --[[ The database is defined in psk.toc for all characters on an account (instead of just one), 
 		so alts can access it also. Without the DB being defined, all data will be lost on 
@@ -28,6 +14,7 @@ end
 local pskFrame = CreateFrame("Frame", "PSKMainFrame", UIParent, "BasicFrameTemplateWithInset")
 pskFrame:SetSize(800, 600)
 pskFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+pskFrame:SetFrameStrata("HIGH")
 pskFrame.TitleBg:SetHeight(30)
 pskFrame.title = pskFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 pskFrame.title:SetPoint("TOPLEFT", pskFrame.TitleBg, "TOPLEFT", 5, -3)
@@ -55,13 +42,9 @@ pskFrame:SetScript("OnHide", function()
 end)
 
 --[[ This is the slash command to open the addon via the console.  We'll also add a minimap button later. ]]
-SLASH_PSK = "/psk"
+SLASH_PSK1 = "/psk"
 SlashCmdList["PSK"] = function()
-	if pskFrame:IsShown() then	
-		pskFrame:Hide()
-	else
-		pskFrame.Show()
-	end
+	pskFrame:Show()
 end 
 
 --[[ Adds "PSKMainFrame" to the "special" frames so that it has access to key controls (ESC to close, etc).
@@ -71,27 +54,31 @@ table.insert(UISpecialFrames, "PSKMainFrame")
 --[[ Creates another frame for an event listener, and sets its parent to the UI parent frame ]]
 local pskListenerFrame = CreateFrame("Frame", "PSKEventListenerFrame", UIParent)
 
+
+--[[ Handle the events that are registered below ]]
 local function eventHandler(self, event, ...)
 
-	if event == CHAT_MSG_GUILD
-		-- [[ Get the most recent line (0) in Guild (2) chat. ]]
-		local msg, sender 
-		msg = C_ChatInfo.GetChatLineText(2, 0)
-		sender = C_ChatInfo.GetChatLineSenderName(msg)
-		Print(sender .. " said " .. chatLine )
-	elseif event = CHAT_MSG_RAID
-		-- [[ Get the most recent line (0) in Guild (2) chat. ]]
-		local msg, sender 
-		msg = C_ChatInfo.GetChatLineText(2, 0)
-		sender = C_ChatInfo.GetChatLineSenderName(msg)
-		Print(sender .. " said " .. chatLine )
+	if event == "CHAT_MSG_GUILD" or event == "CHAT_MSG_RAID" or event == "CHAT_MSG_WHISPER_INFORM" then
+        print(sender .. " said: " .. message)
+    end
+
+end
+
+pskListenerFrame:SetScript("OnEvent", function(self, event, message, sender, ...)
+    if event == "CHAT_MSG_GUILD" 
+		or event == "CHAT_MSG_RAID" 
+		or event == "CHAT_MSG_WHISPER_INFORM" 
+		or event == "CHAT_MSG_WHISPER" then
+			print(sender .. " said: " .. message)
     end
 	
 	if pskFrame:IsShown() then
-		--[[ Display flag for bid next to player's name later ]]
+		print("PSK is showing")
     end
-end
+end)
 
-pskListenerFrame:SetScript("OnEvent", eventHandler)
 pskListenerFrame:RegisterEvent("CHAT_MSG_GUILD")
 pskListenerFrame:RegisterEvent("CHAT_MSG_RAID")
+pskListenerFrame:RegisterEvent("CHAT_MSG_WHISPER")
+pskListenerFrame:RegisterEvent("CHAT_MSG_WHISPER_INFORM")
+
